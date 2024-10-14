@@ -2,7 +2,7 @@
 
 int main()
 {
-    auto inst = TTFileSystem::MemoryInstance<64, 64, 128>{};
+    auto inst = TTFileSystem::MemoryInstance<1024, 256, 256>{};
     auto& desc = inst.getDescriptor(0);
     auto of_base = (TTFileSystem::num_t)(&inst);
     auto& ptr_block = inst.getPtrBlock(0);

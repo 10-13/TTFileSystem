@@ -12,6 +12,7 @@ namespace TTFileSystem
 		using SuperBlockType = Primitives::SuperBlock<SuperBlockSize, BlockSize>;
 		using BlockType = SuperBlockType::BlockType;
 		using PtrBlockType = BlockType::PointerBlock;
+		using NameBlock = BlockType::NameBlock;
 
 		constexpr const static num_t TotalSize = sizeof(Primitives::Header) + DescriptorCount * sizeof(Primitives::Descriptor) + SuperBlockCount * sizeof(SuperBlockType);
 		constexpr const static num_t BlockCount = SuperBlockSize * SuperBlockCount;
@@ -124,9 +125,12 @@ namespace TTFileSystem
 		MemoryInstance()
 		{
 			data_ = (byte_t*)malloc(TotalSize);
+			getSuperBlock(0).allocBlock(0);
 			auto bl = getBlock(0);
 			for (auto&& i : bl.data)
 				i = 0;
+			for (num_t i = 0; i < SuperBlockCount; i++)
+				getSuperBlock(i).initEmpty();
 			for (num_t i = 0; i < DescriptorCount; i++)
 				getDescriptor(i).attributes.flags = 0;
 		}
@@ -153,6 +157,33 @@ namespace TTFileSystem
 				free(data_);
 		}
 
-		
+		friend struct FileReference {
+		private:
+			MemoryInstance* mem_inst;
+			num_t index;
+
+		public:
+			
+			Primitives::Descriptor& descriptor() {
+				return mem_inst->getDescriptor(index);
+			}
+
+			bool exsits() {
+				return descriptor().attributes.flags && descriptor().attributes.EX;
+			}
+
+			void set_name(std::string name, bool except_on_oversize = true);
+
+			void deletFile() {
+				descriptor().attributes.flags &= !descriptor().attributes.EX;
+			}
+			void createFile() {
+				descriptor().attributes.flags |= descriptor().attributes.EX;
+			}
+			void resizeFile(num_t new_size) {
+
+				
+			}
+		};
 	};
 }

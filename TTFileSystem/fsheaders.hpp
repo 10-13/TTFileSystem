@@ -27,7 +27,7 @@ namespace TTFileSystem
         concept SingleBitNumber = (CountBits(Value) == 1);
 
         template<num_t Value>
-        concept PointerMultipleNumber = (Value % sizeof(num_t) == 0);
+        concept PointerMultipleNumber = (Value % sizeof(num_t) == 0) && (Value >= sizeof(num_t));
 
         template<num_t BlockSize>
         requires PointerMultipleNumber<BlockSize>
@@ -45,6 +45,13 @@ namespace TTFileSystem
                             return i + 1;
                     return 0;
                 }
+            };
+            
+            struct NameBlock {
+                constexpr const static num_t Size = BlockSize - sizeof(num_t);
+
+                num_t next;
+                array_type<byte_t, Size> data;
             };
 
             constexpr const static num_t Size = BlockSize;
@@ -64,6 +71,38 @@ namespace TTFileSystem
             num_t taken_amount;
             array_type<byte_t, BitDataSize> taken_flags;
             array_type<BlockType, SuperBlockSize> data;
+
+            void initEmpty() noexcept {
+                taken_amount = 0;
+                for (num_t i = 0; i < BitDataSize; i++)
+                    BitDataSize[i] = 0;
+            }
+
+            inline constexpr bool isTaken(num_t index) const noexcept {
+                return (taken_flags[index / 8] >> (index % 8)) % 2;
+            }
+
+            inline constexpr void allocBlock(num_t index) {
+                if (index > Size)
+                    throw new std::out_of_range("Unreacheble block");
+
+                if (isTaken(index))
+                    throw new std::bad_alloc("Trying allocate taken block");
+
+                taken_amount++;
+                taken_flags[index / 8] |= (1ULL << (index % 8));
+            }
+
+            inline constexpr void freeBlock(num_t index) {
+                if (index > Size)
+                    throw new std::out_of_range("Unreacheble block");
+
+                if (!isTaken(index))
+                    throw new std::bad_alloc("Trying allocate taken block");
+
+                taken_amount--;
+                taken_flags[index / 8] &= !(1ULL << (index % 8));
+            }
         };
 
         struct Descriptor
