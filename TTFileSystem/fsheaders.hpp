@@ -29,6 +29,43 @@ namespace TTFileSystem
         template<num_t Value>
         concept PointerMultipleNumber = (Value % sizeof(num_t) == 0);
 
+        template<num_t BlockSize>
+        requires PointerMultipleNumber<BlockSize>
+        struct Block
+        {
+            struct PointerBlock
+            {
+                constexpr const static num_t Size = BlockSize / sizeof(num_t);
+
+                array_type<num_t, Size> ptrs;
+
+                num_t getAllocatedCount() {
+                    for (num_t i = Size - 1; i > 0; i++)
+                        if (ptrs[i] != 0)
+                            return i + 1;
+                    return 0;
+                }
+            };
+
+            constexpr const static num_t Size = BlockSize;
+
+            array_type<byte_t, BlockSize> data;
+        };
+
+        template<num_t SuperBlockSize, num_t BlockSize>
+            requires (SuperBlockSize % 8 == 0)
+        struct SuperBlock
+        {
+            constexpr static const num_t BitDataSize = SuperBlockSize / 8;
+            constexpr static const num_t Size = SuperBlockSize;
+
+            using BlockType = Block<BlockSize>;
+
+            num_t taken_amount;
+            array_type<byte_t, BitDataSize> taken_flags;
+            array_type<BlockType, SuperBlockSize> data;
+        };
+
         struct Descriptor
         {
             struct SecurityAttributes
@@ -54,6 +91,7 @@ namespace TTFileSystem
                 num_t size;
                 num_t creation_time;
                 num_t name_ptr;
+
             };
             struct FileData
             {
@@ -76,36 +114,6 @@ namespace TTFileSystem
             num_t super_block_count;
 
             array_type<num_t, 4> user_data;
-        };
-
-        template<num_t BlockSize>
-        requires PointerMultipleNumber<BlockSize>
-        struct Block
-        {
-            struct PointerBlock
-            {
-                constexpr const static num_t Size = BlockSize / sizeof(num_t);
-
-                array_type<num_t, Size> ptrs;
-            };
-
-            constexpr const static num_t Size = BlockSize;
-
-            array_type<byte_t, BlockSize> data;
-        };
-
-        template<num_t SuperBlockSize, num_t BlockSize>
-        requires (SuperBlockSize % 8 == 0)
-        struct SuperBlock
-        {
-            constexpr static const num_t BitDataSize = SuperBlockSize / 8;
-            constexpr static const num_t Size = SuperBlockSize;
-
-            using BlockType = Block<BlockSize>;
-
-            num_t taken_amount;
-            array_type<byte_t, BitDataSize> taken_flags;
-            array_type<BlockType, SuperBlockSize> data;
         };
     }
 }
