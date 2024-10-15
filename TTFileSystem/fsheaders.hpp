@@ -57,6 +57,11 @@ namespace TTFileSystem
             constexpr const static num_t Size = BlockSize;
 
             array_type<byte_t, BlockSize> data;
+
+            void initEmpty() {
+                for (num_t i = 0; i < Size; i++)
+                    data[i] = 0;
+            }
         };
 
         template<num_t SuperBlockSize, num_t BlockSize>
@@ -75,7 +80,7 @@ namespace TTFileSystem
             void initEmpty() noexcept {
                 taken_amount = 0;
                 for (num_t i = 0; i < BitDataSize; i++)
-                    BitDataSize[i] = 0;
+                    taken_flags[i] = 0;
             }
 
             inline constexpr bool isTaken(num_t index) const noexcept {
@@ -87,7 +92,7 @@ namespace TTFileSystem
                     throw new std::out_of_range("Unreacheble block");
 
                 if (isTaken(index))
-                    throw new std::bad_alloc("Trying allocate taken block");
+                    throw new std::bad_alloc();
 
                 taken_amount++;
                 taken_flags[index / 8] |= (1ULL << (index % 8));
@@ -102,6 +107,15 @@ namespace TTFileSystem
 
                 taken_amount--;
                 taken_flags[index / 8] &= !(1ULL << (index % 8));
+            }
+
+            inline constexpr num_t firstFreeIndex() {
+                for (num_t i = 0; i < BitDataSize; i++)
+                    if (taken_flags[i] != (byte_t)(0xffff))
+                        for (num_t j = 0; j < 8; j++)
+                            if (!isTaken(i * 8 + j))
+                                return i * 8 + j;
+                return Size;
             }
         };
 
@@ -131,6 +145,11 @@ namespace TTFileSystem
                 num_t creation_time;
                 num_t name_ptr;
 
+                void initEmpty() {
+                    size = 0;
+                    creation_time = 0;
+                    name_ptr = 0;
+                }
             };
             struct FileData
             {
@@ -138,11 +157,23 @@ namespace TTFileSystem
                 num_t data_1_ptr;
                 num_t data_2_ptr;
                 num_t data_3_ptr;
+
+                void initEmpty() {
+                    data_0_ptr = 0;
+                    data_1_ptr = 0;
+                    data_2_ptr = 0;
+                    data_3_ptr = 0;
+                }
             };
 
             SecurityAttributes attributes;
             FileHeader header;
             FileData data;
+
+            void initEmpty() {
+                header.initEmpty();
+                data.initEmpty();
+            }
         };
 
         struct Header

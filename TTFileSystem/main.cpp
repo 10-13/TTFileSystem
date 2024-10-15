@@ -2,13 +2,24 @@
 
 int main()
 {
-    auto inst = TTFileSystem::MemoryInstance<1024, 256, 256>{};
-    auto& desc = inst.getDescriptor(0);
-    auto of_base = (TTFileSystem::num_t)(&inst);
-    auto& ptr_block = inst.getPtrBlock(0);
-    desc.data.data_3_ptr = 0;
-    for (auto&& i : ptr_block.ptrs)
-        i = 0;
-    inst.getIndexedPtr(0, 128);
+    using inst_t = TTFileSystem::MemoryInstance<1024, 256, 256>;
+    auto inst = inst_t{};
+    {
+        auto file = inst_t::FileReference::fileAt(0, &inst);
+        if (!file.exsits())
+            file.createFile();
+        file.resizeFile(3675);
+    }
+    {
+        auto file = inst_t::FileReference::fileAt(1, &inst);
+        if (!file.exsits())
+            file.createFile();
+        file.resizeFile(3675);
+    }
+    {
+        auto file = inst_t::FileReference::fileAt(0, &inst);
+        file.resizeFile(100000);
+    }
+    
     return 0;
 }
