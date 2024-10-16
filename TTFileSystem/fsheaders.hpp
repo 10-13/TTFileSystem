@@ -103,10 +103,12 @@ namespace TTFileSystem
                     throw new std::out_of_range("Unreacheble block");
 
                 if (!isTaken(index))
-                    throw new std::bad_alloc("Trying allocate taken block");
+                    throw new std::bad_alloc();
 
                 taken_amount--;
-                taken_flags[index / 8] &= !(1ULL << (index % 8));
+                byte_t a = (index % 8);
+                a = ~(1U << a);
+                taken_flags[index / 8] &= a;
             }
 
             inline constexpr num_t firstFreeIndex() {

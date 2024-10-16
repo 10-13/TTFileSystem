@@ -121,8 +121,9 @@ namespace TTFileSystem
 		num_t getFreeBlock() {
 			for (num_t i = 0; i < SuperBlockCount; i++)
 				if (getSuperBlock(i).taken_amount < SuperBlockSize) {
-					return getSuperBlock(i).firstFreeIndex();
+					return getSuperBlock(i).firstFreeIndex() + i * SuperBlockSize;
 				}
+			throw new std::bad_alloc();
 		}
 
 		template<bool Emptify = false>
@@ -137,7 +138,7 @@ namespace TTFileSystem
 
 		void freeSingleBlock(num_t block) {
 			SuperBlockType& sb = getSuperBlockByBlockIndex(block);
-			sb.freeBlock(block);
+			sb.freeBlock(block % SuperBlockSize);
 		}
 
 		byte_t* transfer()
@@ -183,23 +184,32 @@ namespace TTFileSystem
 				free(data_);
 		}
 
+		num_t payload() {
+			num_t res{0};
+			for (num_t i = 0; i < SuperBlockCount; i++)
+				res += getSuperBlock(i).taken_amount;
+			return res;
+		}
+
 		struct FileReference {
 		private:
 			MemoryInstance* mem_inst;
 			num_t index;
 
+			constexpr static const num_t Size0 = 1;
+			constexpr static const num_t Size1 = PtrBlockType::Size;
+			constexpr static const num_t Size2 = Size1 * PtrBlockType::Size;
+			constexpr static const num_t Size3 = Size2 * PtrBlockType::Size;
+
 			num_t allocateInPlace(PtrBlockType& block, int index) {
 				if (block.ptrs[index] == 0)
 					block.ptrs[index] = mem_inst->allocateSingleBlock<true>();
+				if (block.ptrs[index] == 0)
+					throw new std::out_of_range("");
 				return block.ptrs[index];
 			}
 
 			void allocateBlock(num_t index) {
-				constexpr const num_t Size0 = 1;
-				constexpr const num_t Size1 = PtrBlockType::Size;
-				constexpr const num_t Size2 = Size1 * PtrBlockType::Size;
-				constexpr const num_t Size3 = Size2 * PtrBlockType::Size;
-
 				auto& desc = descriptor().data;
 
 				if (index == 0)
@@ -208,30 +218,29 @@ namespace TTFileSystem
 
 				if (index < Size0)
 					return;
+
 				index -= Size0;
 				if (index == 0)
 					if (desc.data_1_ptr == 0)
 						desc.data_1_ptr = mem_inst->allocateSingleBlock<true>();
-				{
+				if (index < Size1) {
 					auto& block = mem_inst->getPtrBlock(desc.data_1_ptr);
 					allocateInPlace(block, index);
+					return;
 				}
 
-				if (index < Size1)
-					return;
 				index -= Size1;
 				if (index == 0)
 					if (desc.data_2_ptr == 0)
 						desc.data_2_ptr = mem_inst->allocateSingleBlock<true>();
 
-				{
+				if (index < Size2)  {
 					auto& block1 = mem_inst->getPtrBlock(desc.data_2_ptr);
 					auto& block2 = mem_inst->getPtrBlock(allocateInPlace(block1, index / Size1));
 					allocateInPlace(block2, index % Size1);
+					return;
 				}
 
-				if (index < Size2)
-					return;
 				index -= Size2;
 				if (index == 0)
 					if (desc.data_3_ptr == 0)
@@ -245,12 +254,69 @@ namespace TTFileSystem
 				}
 			}
 
+			bool freeInPlace(PtrBlockType& block, num_t index, num_t dp) {
+				num_t pow = CPower(PtrBlockType::Size, dp);
+				bool a = true;
+				if (dp > 0)
+					a = freeInPlace(mem_inst->getPtrBlock(block.ptrs[index / pow]), index % pow, dp - 1);
+				index /= pow;
+				if (a || dp == 0)
+					mem_inst->freeSingleBlock(block.ptrs[index]);
+				return index == 0 && a;
+			}
+
+			void freeBlock(num_t index) {
+				auto& desc = descriptor();
+
+				if (index == 0) {
+					mem_inst->freeSingleBlock(desc.data.data_0_ptr);
+					return;
+				}
+
+				index -= Size0;
+				if (index < Size1) {
+					freeInPlace(mem_inst->getPtrBlock(desc.data.data_1_ptr), index, 0);
+					if (index == 0)
+						mem_inst->freeSingleBlock(desc.data.data_1_ptr);
+					return;
+				}
+
+				index -= Size1;
+				if (index < Size2) {
+					freeInPlace(mem_inst->getPtrBlock(desc.data.data_2_ptr), index, 1);
+					if (index == 0)
+						mem_inst->freeSingleBlock(desc.data.data_2_ptr);
+					return;
+				}
+
+				index -= Size2;
+				if (index < Size3) {
+					freeInPlace(mem_inst->getPtrBlock(desc.data.data_3_ptr), index, 2);
+					if (index == 0)
+						mem_inst->freeSingleBlock(desc.data.data_3_ptr);
+					return;
+				}
+
+				throw new std::out_of_range("free unindexed block");
+			}
+
 			void allocate(num_t amount) {
+				auto block_max = BlockCount;
 				auto& desc = descriptor();
 				while (amount-- > 0) {
 					num_t allocated_blocks = (desc.header.size + BlockSize - 1) / BlockSize;
 					allocateBlock(allocated_blocks);
 					desc.header.size += BlockSize;
+				}
+			}
+
+			void deallocate(num_t amount) {
+				auto block_max = BlockCount;
+				auto& desc = descriptor();
+				while (amount-- > 0) {
+					num_t allocated_blocks = (desc.header.size + BlockSize - 1) / BlockSize;
+					freeBlock(allocated_blocks - 1);
+					desc.header.size -= BlockSize;
 				}
 			}
 
@@ -266,10 +332,13 @@ namespace TTFileSystem
 				return descriptor().attributes.flags && descriptor().attributes.EX;
 			}
 
-			void set_name(std::string name, bool except_on_oversize = true);
+			void setName(std::string name, bool except_on_oversize = true);
 
 			void deletFile() {
 				descriptor().attributes.flags &= !descriptor().attributes.EX;
+
+				num_t allocated_blocks = (descriptor().header.size + BlockSize - 1) / BlockSize;
+				deallocate(allocated_blocks);
 			}
 			void createFile() {
 				if (exsits())
@@ -284,7 +353,8 @@ namespace TTFileSystem
 				num_t required_block = (new_size + BlockSize - 1) / BlockSize;
 				if (required_block > allocated_blocks)
 					allocate(required_block - allocated_blocks);
-				auto& pb = mem_inst->getPtrBlock(desc.data.data_1_ptr);
+				if (required_block < allocated_blocks)
+					deallocate(allocated_blocks - required_block);
 			}
 
 			static FileReference fileAt(num_t index, MemoryInstance* src) {
