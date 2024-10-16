@@ -260,8 +260,10 @@ namespace TTFileSystem
 				if (dp > 0)
 					a = freeInPlace(mem_inst->getPtrBlock(block.ptrs[index / pow]), index % pow, dp - 1);
 				index /= pow;
-				if (a || dp == 0)
+				if (a || dp == 0) {
 					mem_inst->freeSingleBlock(block.ptrs[index]);
+					block.ptrs[index] = 0;
+				}
 				return index == 0 && a;
 			}
 
@@ -270,30 +272,37 @@ namespace TTFileSystem
 
 				if (index == 0) {
 					mem_inst->freeSingleBlock(desc.data.data_0_ptr);
+					desc.data.data_0_ptr = 0;
 					return;
 				}
 
 				index -= Size0;
 				if (index < Size1) {
 					freeInPlace(mem_inst->getPtrBlock(desc.data.data_1_ptr), index, 0);
-					if (index == 0)
+					if (index == 0) {
 						mem_inst->freeSingleBlock(desc.data.data_1_ptr);
+						desc.data.data_1_ptr = 0;
+					}
 					return;
 				}
 
 				index -= Size1;
 				if (index < Size2) {
 					freeInPlace(mem_inst->getPtrBlock(desc.data.data_2_ptr), index, 1);
-					if (index == 0)
+					if (index == 0) {
 						mem_inst->freeSingleBlock(desc.data.data_2_ptr);
+						desc.data.data_2_ptr = 0;
+					}
 					return;
 				}
 
 				index -= Size2;
 				if (index < Size3) {
 					freeInPlace(mem_inst->getPtrBlock(desc.data.data_3_ptr), index, 2);
-					if (index == 0)
+					if (index == 0) {
 						mem_inst->freeSingleBlock(desc.data.data_3_ptr);
+						desc.data.data_1_ptr = 0;
+					}
 					return;
 				}
 
@@ -356,6 +365,16 @@ namespace TTFileSystem
 				if (required_block < allocated_blocks)
 					deallocate(allocated_blocks - required_block);
 			}
+			BlockType& getBlock(num_t index) {
+				return mem_inst->getBlock(mem_inst->getIndexedPtr(this->index, index));
+			}
+			num_t getAllocatedBlockCount() {
+				return (descriptor().header.size + BlockSize - 1) / BlockSize;
+			}
+
+			MemoryInstance* instance() {
+				return mem_inst;
+			}
 
 			static FileReference fileAt(num_t index, MemoryInstance* src) {
 				FileReference res{};
@@ -363,6 +382,93 @@ namespace TTFileSystem
 				res.mem_inst = src;
 				return res;
 			}
+
+			template<typename Type>
+			struct DataIterator {
+			private:
+				FileReference* ref_ptr_;
+				num_t index_;
+				num_t offest_;
+
+			public:
+				DataIterator(FileReference* file, num_t index = 0, num_t byte_offest = 0) : ref_ptr_(file), index_(index), offest_(byte_offest) {}
+
+				void set(const Type& a) {
+					const auto& data = reinterpret_cast<const std::array<byte_t, sizeof(Type)>&>(a);
+					num_t size = sizeof(Type);
+					num_t index = 0;
+					num_t offest = offest_ + index_ * sizeof(Type);
+					num_t bindex = offest % BlockSize;
+
+					BlockType* block;
+
+					while (index < size) {
+						block = getBlock((offest + index) / BlockSize);
+						for (; bindex < BlockSize && index < size; bindex++, index++)
+							block.data[bindex] = data[index];
+						bindex = 0;
+					}
+				}
+
+				Type operator*() {
+					std::array<byte_t, sizeof(Type)> data;
+					num_t size = sizeof(Type);
+					num_t index = 0;
+					num_t offest = offest_ + index_ * sizeof(Type);
+					num_t bindex = offest % BlockSize;
+
+					BlockType* block;
+
+					while (index < size) {
+						block = getBlock((offest + index) / BlockSize);
+						for (; bindex < BlockSize && index < size; bindex++, index++)
+							data[index] = block.data[bindex];
+						bindex = 0;
+					}
+
+					return reinterpret_cast<Type>(data);
+				}
+
+				DataIterator& operator++() {
+					index_++;
+					return *this;
+				}
+
+				bool operator!=(const DataIterator& other) {
+					return index_ * sizeof(Type) + offest_ != other.index_ * sizeof(Type) + other.offest_;
+				}
+			};
 		};
+
+		struct API;
+	};
+
+	template<num_t BlockSize, num_t SuperBlockSize, num_t SuperBlockCount, num_t DescriptorCount>
+	struct MemoryInstance<BlockSize, SuperBlockSize, SuperBlockCount, DescriptorCount>::API {
+		static std::vector<FileReference> ListFiles(MemoryInstance* inst) {
+			std::vector<FileReference> res;
+			for (num_t i = 0; i < DescriptorCount; i++) {
+				auto& desc = inst->getDescriptor(i);
+				if (desc.attributes.flags & desc.attributes.EX)
+					res.push_back(FileReference::fileAt(i, inst));
+			}
+			return res;
+		}
+		static std::vector<FileReference> OpenDirectory(FileReference ref) {
+			auto& desc = ref.descriptor();
+			if (!(desc.attributes.flags & desc.attributes.DR))
+				return {};
+
+			std::vector<FileReference> files;
+
+			for (num_t i = 0; i < ref.getAllocatedBlockCount(); i++) {
+				BlockType& block = ref.getBlock(i);
+				PtrBlockType& pb = reinterpret_cast<PtrBlockType&>(block);
+				for (num_t i = 0; i < pb.Size && pb.ptrs[i] != 0; i++)
+					files.push_back(FileReference::fileAt(pb.ptrs[i], ref.instance()));
+			}
+
+			return files;
+		}
 	};
 }

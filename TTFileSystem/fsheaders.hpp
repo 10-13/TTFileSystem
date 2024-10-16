@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <concepts>
 #include <array>
+#include <vector>
 #include <stdexcept>
 #include <cstddef>
 
