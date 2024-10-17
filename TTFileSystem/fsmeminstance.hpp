@@ -126,13 +126,14 @@ namespace TTFileSystem
 			throw new std::bad_alloc();
 		}
 
-		template<bool Emptify = false>
+		template<num_t EmptifyAmount = 0>
 		num_t allocateSingleBlock() {
 			num_t free = getFreeBlock();
 			SuperBlockType& sb = getSuperBlockByBlockIndex(free);
 			sb.allocBlock(free % SuperBlockSize);
-			if constexpr (Emptify)
-				getBlock(free).initEmpty();
+			auto& b = getBlock(free);
+			for (num_t i = 0; i < EmptifyAmount; i++)
+				b.data[i] = 0;
 			return free;
 		}
 
@@ -203,9 +204,9 @@ namespace TTFileSystem
 
 			num_t allocateInPlace(PtrBlockType& block, int index) {
 				if (block.ptrs[index] == 0)
-					block.ptrs[index] = mem_inst->allocateSingleBlock<true>();
-				if (block.ptrs[index] == 0)
-					throw new std::out_of_range("");
+					block.ptrs[index] = mem_inst->allocateSingleBlock<8>();
+				if (index < PtrBlockType::Size - 2)
+					block.ptrs[index + 1] = 0;
 				return block.ptrs[index];
 			}
 
@@ -214,7 +215,7 @@ namespace TTFileSystem
 
 				if (index == 0)
 					if (desc.data_0_ptr == 0)
-						desc.data_0_ptr = mem_inst->allocateSingleBlock<true>();
+						desc.data_0_ptr = mem_inst->allocateSingleBlock<8>();
 
 				if (index < Size0)
 					return;
@@ -222,7 +223,7 @@ namespace TTFileSystem
 				index -= Size0;
 				if (index == 0)
 					if (desc.data_1_ptr == 0)
-						desc.data_1_ptr = mem_inst->allocateSingleBlock<true>();
+						desc.data_1_ptr = mem_inst->allocateSingleBlock<8>();
 				if (index < Size1) {
 					auto& block = mem_inst->getPtrBlock(desc.data_1_ptr);
 					allocateInPlace(block, index);
@@ -232,7 +233,7 @@ namespace TTFileSystem
 				index -= Size1;
 				if (index == 0)
 					if (desc.data_2_ptr == 0)
-						desc.data_2_ptr = mem_inst->allocateSingleBlock<true>();
+						desc.data_2_ptr = mem_inst->allocateSingleBlock<8>();
 
 				if (index < Size2)  {
 					auto& block1 = mem_inst->getPtrBlock(desc.data_2_ptr);
