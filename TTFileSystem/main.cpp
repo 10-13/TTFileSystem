@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <chrono>
 
+#define LARGE
 
 #define TIME_MESURE(a) { \
 auto start = std::chrono::high_resolution_clock::now(); \
@@ -14,7 +15,7 @@ std::cout << "Time: " << elapsed.count() << std::endl; \
 
 int main()
 {
-    using inst_t = TTFileSystem::MemoryInstance<4096, 4096, 64>;
+    using inst_t = TTFileSystem::MemoryInstance<4096, 1024, 1024>;
 
     auto inst = inst_t{};
     auto print_payload = [&inst]() {
@@ -39,14 +40,15 @@ int main()
         file.resizeFile(3675);
         print_payload();
     }
+#ifdef LARGE
     {
         auto file = inst_t::FileReference::fileAt(0, &inst);
-        TIME_MESURE(file.resizeFile(1024 * 1024 * 500););
+        TIME_MESURE(file.resizeFile(1024ULL * 1024 * 3072););
         print_payload();
     }
     {
         auto file = inst_t::FileReference::fileAt(0, &inst);
-        TIME_MESURE(file.resizeFile(1024 * 1024 * 2););
+        TIME_MESURE(file.resizeFile(3675););
         print_payload();
     }
     {
@@ -69,6 +71,7 @@ int main()
         TIME_MESURE(file.resizeFile(1024 * 1024 * 500););
         print_payload();
     }
+#endif
     {
         auto file = inst_t::FileReference::fileAt(0, &inst);
         file.deletFile();

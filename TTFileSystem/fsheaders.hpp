@@ -70,6 +70,7 @@ namespace TTFileSystem
         struct SuperBlock
         {
             constexpr static const num_t BitDataSize = SuperBlockSize / 8;
+            constexpr static const num_t BitDataFalloff = BitDataSize % 8;
             constexpr static const num_t Size = SuperBlockSize;
 
             using BlockType = Block<BlockSize>;
@@ -112,12 +113,34 @@ namespace TTFileSystem
                 taken_flags[index / 8] &= a;
             }
 
-            inline constexpr num_t firstFreeIndex() {
-                for (num_t i = 0; i < BitDataSize; i++)
+            num_t firstFreeIndex() {
+                array_type<num_t, BitDataSize / 8>& pdat = (array_type<num_t, BitDataSize / 8>&)(data);
+                for (num_t b = 0; b < BitDataSize / 8; b++)
+                    if (pdat[b] != 0xffffffffffffffff)
+                    {
+                        num_t index = b << 3;
+                        for (num_t i = 0; i < 8; i++)
+                        {
+                            auto& flag = taken_flags[i | index];
+                            if (flag != (byte_t)(0xffff))
+                                for (num_t j = 0; j < 8; j++)
+                                {
+                                    byte_t shifted = flag >> j;
+                                    if (shifted % 2 == 0)
+                                        return ((i | index) << 3) | j;
+                                }
+                        }
+                    }
+                for (num_t i = BitDataSize - BitDataFalloff; i < BitDataSize; i++)
+                {
                     if (taken_flags[i] != (byte_t)(0xffff))
                         for (num_t j = 0; j < 8; j++)
-                            if (!isTaken(i * 8 + j))
-                                return i * 8 + j;
+                        {
+                            byte_t shifted = taken_flags[i] >> j;
+                            if (shifted % 2 == 0)
+                                return (i << 3) | j;
+                        }
+                }
                 return Size;
             }
         };
