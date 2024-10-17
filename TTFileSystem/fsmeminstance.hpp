@@ -301,7 +301,7 @@ namespace TTFileSystem
 					freeInPlace(mem_inst->getPtrBlock(desc.data.data_3_ptr), index, 2);
 					if (index == 0) {
 						mem_inst->freeSingleBlock(desc.data.data_3_ptr);
-						desc.data.data_1_ptr = 0;
+						desc.data.data_3_ptr = 0;
 					}
 					return;
 				}

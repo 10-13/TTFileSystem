@@ -1,10 +1,11 @@
 #include "fsmeminstance.hpp"
 #include <iostream>
 #include <iomanip>
+#include <chrono>
 
 int main()
 {
-    using inst_t = TTFileSystem::MemoryInstance<1024, 256, 256>;
+    using inst_t = TTFileSystem::MemoryInstance<4096, 4096, 64>;
 
     auto inst = inst_t{};
     auto print_payload = [&inst]() {
@@ -31,7 +32,11 @@ int main()
     }
     {
         auto file = inst_t::FileReference::fileAt(0, &inst);
-        file.resizeFile(1024 * 1024 * 20);
+        auto start = std::chrono::high_resolution_clock::now();
+        file.resizeFile(1024 * 1024 * 500);
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> elapsed = end - start;
+        std::cout << "Time: " << elapsed.count() << std::endl;
         print_payload();
     }
     {
