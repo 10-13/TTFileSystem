@@ -51,6 +51,26 @@ int main()
     }
     {
         auto file = inst_t::FileReference::fileAt(0, &inst);
+        TIME_MESURE(file.resizeFile(1024 * 1024 * 500););
+        print_payload();
+    }
+    {
+        auto file = inst_t::FileReference::fileAt(1, &inst);
+        TIME_MESURE(file.resizeFile(1024 * 1024 * 500););
+        print_payload();
+    }
+    {
+        auto file = inst_t::FileReference::fileAt(1, &inst);
+        TIME_MESURE(file.resizeFile(1024 * 1024 * 2););
+        print_payload();
+    }
+    {
+        auto file = inst_t::FileReference::fileAt(1, &inst);
+        TIME_MESURE(file.resizeFile(1024 * 1024 * 500););
+        print_payload();
+    }
+    {
+        auto file = inst_t::FileReference::fileAt(0, &inst);
         file.deletFile();
         print_payload();
     }
