@@ -392,7 +392,13 @@ namespace TTFileSystem
 				num_t offest_;
 
 			public:
-				DataIterator(FileReference* file, num_t index = 0, num_t byte_offest = 0) : ref_ptr_(file), index_(index), offest_(byte_offest) {}
+				DataIterator(FileReference* file, num_t byte_offest, num_t index = 0) : ref_ptr_(file), index_(index), offest_(byte_offest) {}
+				DataIterator(FileReference* file) : ref_ptr_(file), index_(0), offest_(file->descriptor().header.size) {}
+
+				num_t position()
+				{
+					return index_ * sizeof(Type) + offest_;
+				}
 
 				void set(const Type& a) {
 					const auto& data = reinterpret_cast<const std::array<byte_t, sizeof(Type)>&>(a);
@@ -442,6 +448,8 @@ namespace TTFileSystem
 		};
 
 		struct API;
+
+		struct OFileStream;
 	};
 
 	template<num_t BlockSize, num_t SuperBlockSize, num_t SuperBlockCount, num_t DescriptorCount>
@@ -470,6 +478,44 @@ namespace TTFileSystem
 			}
 
 			return files;
+		}
+	};
+
+	template<num_t BlockSize, num_t SuperBlockSize, num_t SuperBlockCount, num_t DescriptorCount>
+	struct MemoryInstance<BlockSize, SuperBlockSize, SuperBlockCount, DescriptorCount>::OFileStream
+	{
+	private:
+		FileReference ref_;
+		num_t position_;
+		std::stringstream buffer_;
+
+		void flush_buffer()
+		{
+			const auto& sz = buffer_.str();
+			
+			for (const auto& i : sz)
+			{
+				
+			}
+			buffer_.str(std::string{});
+		}
+
+	public:
+		constexpr static const num_t flush_amount = 10;
+
+		OFileStream(FileReference file) : ref_{ file }, byte_iter_{ &ref_, 0, 0 } {}
+
+		template<typename T>
+		OFileStream& operator<<(T&& dat) {
+			buffer_ << dat;
+
+			if (buffer_.str().size() > flush_amount)
+				flush_buffer();
+		}
+
+		~OFileStream()
+		{
+			flush_buffer();
 		}
 	};
 }
