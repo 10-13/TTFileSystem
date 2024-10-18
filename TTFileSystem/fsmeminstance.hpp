@@ -205,7 +205,7 @@ namespace TTFileSystem
 			num_t allocateInPlace(PtrBlockType& block, int index) {
 				if (block.ptrs[index] == 0)
 					block.ptrs[index] = mem_inst->allocateSingleBlock<8>();
-				if (index < PtrBlockType::Size - 2)
+				if (index < PtrBlockType::Size - 1)
 					block.ptrs[index + 1] = 0;
 				return block.ptrs[index];
 			}
@@ -245,7 +245,7 @@ namespace TTFileSystem
 				index -= Size2;
 				if (index == 0)
 					if (desc.data_3_ptr == 0)
-						desc.data_3_ptr = mem_inst->allocateSingleBlock<true>();
+						desc.data_3_ptr = mem_inst->allocateSingleBlock<8>();
 
 				{
 					auto& block1 = mem_inst->getPtrBlock(desc.data_3_ptr);
